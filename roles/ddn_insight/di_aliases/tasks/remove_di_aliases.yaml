@@ -1,0 +1,29 @@
+---
+
+- name: di_aliase | Removing di aliase symlinks
+  file:
+    name: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ symlink_dir }}/di-report"
+    - "{{ symlink_dir }}/di-addproduct"
+    - "{{ symlink_dir }}/di-service"
+    - "{{ symlink_dir }}/di-status"
+    - "{{ symlink_dir }}/di-update-user"
+    - "{{ symlink_dir }}/di-version"
+    - "{{ symlink_dir }}/di-msmtp"
+    - "{{ symlink_dir }}/di-influx_enable_extra_metrics"
+    - "{{ symlink_dir }}/di-influx_retention"
+    - "{{ symlink_dir }}/di-ldap"
+  ignore_errors: true
+
+- name: delete | common-pkgs.repo repo file
+  file:
+    path: /etc/yum.repos.d/common-pkgs.repo
+    state: absent
+
+  
+- name:  delete | docker.repo repo file
+  file:
+    path: /etc/yum.repos.d/docker.repo
+    state: absent

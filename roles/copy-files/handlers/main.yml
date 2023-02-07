@@ -1,0 +1,6 @@
+---
+# handlers file for copy-files
+
+- name: set ddnmon_key_changed
+  set_fact:
+    ddnmon_key_changed: true

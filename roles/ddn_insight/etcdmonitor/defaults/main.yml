@@ -1,0 +1,9 @@
+---
+
+# defaults file for monitor etcd
+etcdcount: |-       
+    {{ groups['etcd'] | length | int }}
+isdualnodesetup: |-
+     {%- if etcdcount | int >1 -%}true{%- else -%}false{%- endif -%}
+
+

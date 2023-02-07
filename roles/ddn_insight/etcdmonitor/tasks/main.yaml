@@ -1,0 +1,13 @@
+---
+
+- name:  reload systemd
+  systemd:
+    daemon_reload: true 
+
+- name: Restart monitor_etcd
+  service:
+    name: monitor_etcd.service
+    state: started
+    enabled: yes
+  when: isdualnodesetup|bool
+

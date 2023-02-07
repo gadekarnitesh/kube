@@ -1,0 +1,17 @@
+---
+- name: Gen_haproxy_path | create haproxy dir
+  file:
+    path: "{{ haproxy_config_path }}"
+    state: directory
+    owner: "{{ haproxy_dir_owner }}"
+    mode: "{{ haproxy_dir_mode }}"
+    recurse: yes
+
+- name: Create haprpxy config file | Create haproxy config file
+  template:
+    src: haproxy.cfg.j2
+    dest: "{{ haproxy_config_path }}haproxy.cfg"
+    mode: 0644
+# notify: restart etcd
+# when: is_etcd_master and etcd_cluster_setup
+

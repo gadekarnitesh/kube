@@ -1,0 +1,20 @@
+---
+
+- name: "Check if Haproxy container exist"
+  shell: docker ps -a | grep {{ container_name }}
+  register: is_container_exist
+  ignore_errors: yes
+ 
+- name: "Remove HAProxy container if running"
+  shell: docker rm -f {{ container_name }}
+  when:
+    is_container_exist.stdout | length > 0
+
+
+- include_tasks: create_config.yml
+  when: 
+    is_container_exist.stdout != "ddni-haproxy"
+
+- name: "Run haproxy docker container"
+  shell: docker run -d --restart=always --name {{ container_name }} -v /etc/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro -p {{ haproxy_port }}:{{ haproxy_port }} {{ docker_registry }}/{{ container_name }}:latest 
+  

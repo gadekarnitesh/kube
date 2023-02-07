@@ -1,0 +1,37 @@
+---
+
+# defaults file for haproxy docker container installation
+
+haproxy_config_path: "/etc/haproxy/"
+
+haproxy_dir_mode: "0644"
+
+haproxy_dir_owner: root
+
+haproxy_port: 2388
+
+container_name: ddni-haproxy
+
+hostname1: |-      
+    {{ hostvars[inventory_hostname]['ansible_facts']['hostname'] }}
+ 
+hostname2: |-
+    {% for host in groups['etcd'] -%}
+        {%- if hostvars[inventory_hostname]['ansible_facts']['hostname'] != host -%}
+          {{ host }}
+        {%- endif -%}
+    {%- endfor -%}
+
+ipaddress1: |-      
+    {{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}
+
+ipaddress2: |-  
+    {% for host in groups['etcd'] -%}
+        {%- if hostvars[inventory_hostname]['ansible_facts']['hostname'] != host -%}
+          {{ hostvars[host]['ansible_default_ipv4']['address'] }}  
+        {%- endif -%}  
+    {%- endfor -%}
+
+docker_registry: |-
+    {{ hostvars[inventory_hostname]['registry_host'] }}
+

@@ -1,0 +1,179 @@
+---
+
+
+- name: check os version support
+  fail:
+    msg: "Error: Current version {{ ansible_distribution|lower }} : {{ ansible_distribution_version|float }} is not supported for DDN Insight...."
+  when:   ansible_distribution|lower == "redhat" and ( ansible_distribution_version|float > 8.5 or ansible_distribution_version|float < 7.4 )
+       or ansible_distribution|lower == "ubuntu" and not ( ansible_distribution_version|float != 18.04 or ansible_distribution_version|float != 20.04 )
+       or ansible_distribution|lower == "almalinux" and ( ansible_distribution_version|float != 8.5  )
+       or ansible_distribution|lower == "opensuse leap" and ( ansible_distribution_version|float != 15.3 )
+       or ansible_distribution|lower == "centos" and ( ansible_distribution_version|float > 8.5 or ansible_distribution_version|float < 7.4 )
+
+
+- name: check anaconda
+  ansible.builtin.stat:
+    path: "/root/anaconda-ks.cfg"
+  register: anaconda
+  when:
+    - ansible_distribution|lower == "centos" or  ansible_distribution|lower == "redhat" or  ansible_distribution|lower == "almalinux"
+
+- name: check centos installation type
+  shell: sed -n -e '/%packages/,/%end/ p' /root/anaconda-ks.cfg
+  register: installation_type
+  when:
+     - ansible_distribution|lower == "centos" or  ansible_distribution|lower == "redhat" or  ansible_distribution|lower == "almalinux"
+     - anaconda.stat.exists
+
+- name: Centos RHEL AlmaLinux installation type not minimal when anaconda exist
+  fail:
+    msg: "Error: Installation type is not Minimal,Please refer install guide...."
+  when:
+     - ansible_distribution|lower == "centos" or  ansible_distribution|lower == "redhat" or  ansible_distribution|lower == "almalinux"
+     - anaconda.stat.exists
+     - '"minimal" not in installation_type.stdout'
+
+- name: Centos RHEL AlmaLinux installation type not minimal when anaconda absent
+  shell: yum list installed | egrep '\bgnome'
+  register: gnome_exist
+  ignore_errors: true
+  when:
+     - ansible_distribution|lower == "centos" or  ansible_distribution|lower == "redhat" or  ansible_distribution|lower == "almalinux"
+     - not anaconda.stat.exists
+
+- name: Centos RHEL AlmaLinux installation type not minimal
+  fail:
+    msg: "Error: Installation type is not Minimal,Please refer install guide...."
+  when: 
+     - ansible_distribution|lower == "centos" or  ansible_distribution|lower == "redhat" or  ansible_distribution|lower == "almalinux"
+     - not anaconda.stat.exists
+     - gnome_exist.rc == 0
+    
+
+- name: check media-info file
+  ansible.builtin.stat:
+    path: "/var/log/installer/media-info"
+  register: media_info
+  when: 
+    - ansible_distribution|lower == "ubuntu"
+
+
+- name: check ubuntu os installation type
+  shell: cat /var/log/installer/media-info
+  register: media_info_data
+  when: 
+     - ansible_distribution|lower == "ubuntu"
+     - media_info.stat.exists
+
+
+- name: Ubuntu installation type not minimal
+  fail:
+    msg: "Error: Installation type is not Minimal,Please refer install guide...."
+  when:
+    - ansible_distribution|lower == "ubuntu"
+    - '"Ubuntu-Server" not in media_info_data.stdout'
+    - media_info.stat.exists
+
+- name: Ubuntu installation type check when media file does not exist
+  shell: dpkg --list | egrep '\bgnome'
+  register: ubuntu_gnome_exist
+  ignore_errors: true
+  when:
+     - ansible_distribution|lower == "ubuntu"
+     - not media_info.stat.exists
+
+- name: Ubuntu os not minimal 
+  fail:
+    msg: "Error: Installation type is not Minimal,Please refer install guide...."
+  when:
+    - ansible_distribution|lower == "ubuntu"
+    - not media_info.stat.exists
+    - ubuntu_gnome_exist.rc == 0 
+
+
+- name: OpenSUSE os type check
+  shell: command -v gnome-session >/dev/null 2>&1
+  register: opensuse_gnome_exist
+  ignore_errors: yes
+  when:
+    - ansible_distribution|lower == "opensuse leap"
+
+- name: OpenSUSE os type not minimal
+  fail: 
+    msg: "Error: Installation type is not Minimal,Please refer install guide...."
+  when:
+    - ansible_distribution|lower == "opensuse leap"
+    - opensuse_gnome_exist.rc == 0
+
+ 
+#- name: "Check if the Legacy DDNi exists"
+ # ansible.builtin.stat:
+#    path: "{{ legacy_ddni_path }}"
+ # register: is_legacy_ddni_present
+
+#- name: Legacy DDNi detected
+#  fail:
+ #   msg: "Error: Legacy DDN Insight detected on node...."
+#  when: is_legacy_ddni_present.stat.exists
+
+
+- name: "Check if the /data directory exists"
+  ansible.builtin.stat:
+    path: "{{ data_dir_path }}"
+  register: is_data_dir_present
+
+- name: Data directory not present
+  fail:
+    msg: "Error: {{ data_dir_path }} Not Found on Insight node, Please refer User Guide Preparation for DDN Insight...."
+  when: not is_data_dir_present.stat.exists
+
+- name: Data directory size check
+  shell: df {{ data_dir_path }} | awk 'FNR == 2 {print $4}'
+  register: data_dir_free_space
+  when: is_data_dir_present.stat.exists
+
+- name: Data directory size check fail
+  fail:
+    msg: "Insufficient space on {{ data_dir_path }} partition..mininum requirement is {{  minimum_data_dir_size }}GiB...."
+  when: (data_dir_free_space.stdout|int) / 1024 /1024  < minimum_data_dir_size 
+
+- name: "Check if the /cache directory exists"
+  ansible.builtin.stat:
+    path: "{{ cache_dir_path }}"
+  register: is_cache_dir_present
+
+- fail:
+    msg: "Error: {{ cache_dir_path }} Not Found on Insight node, Please refer User Guide Preparation for DDN Insight...."
+  when: not is_cache_dir_present.stat.exists
+
+
+- name: Cache directory size check
+  shell: df {{ cache_dir_path }} | awk 'FNR == 2 {print $4}'
+  register: cache_dir_free_space
+  when: is_cache_dir_present.stat.exists
+
+- fail:
+    msg: "Insufficient space on {{ cache_dir_path }} partition..mininum requirement is {{  minimum_cache_dir_size }}GiB...."
+  when: (cache_dir_free_space.stdout|int) / 1024 /1024  <  minimum_cache_dir_size 
+
+
+- name: Root directory size check
+  shell: df / | awk 'FNR == 2 {print $4}'
+  register: root_dir_free_space
+
+
+- name: Root directory size check fail
+  fail:
+    msg: "Insufficient space on /root partition..mininum requirement is {{  minimum_root_dir_size }}GiB...."
+  when: (root_dir_free_space.stdout|int) / 1024 /1024  <   minimum_root_dir_size 
+
+- name: Node memory check
+  shell: free -gt | awk 'FNR == 2 {print $2}'
+  register: node_memory
+
+- name: Node memory check fail
+  fail:
+    msg: "Insufficient memory {{ node_memory.stdout|int }}GiB  on node..miminum requirement is {{  minimum_memory }}GiB...."
+  when: (node_memory.stdout|int)  <   minimum_memory 
+
+

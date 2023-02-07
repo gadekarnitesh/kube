@@ -1,0 +1,31 @@
+---
+
+- name: "Check if keepalived container exist"
+  shell: docker ps -a | grep {{ keepalived_container_name }}
+  register: is_keepalived_container_exist
+  ignore_errors: yes
+ 
+- name: "Remove Keepalived container if running"
+  shell: docker rm -f {{ keepalived_container_name }}
+  when:
+    is_keepalived_container_exist.stdout | length > 0
+
+- name: Define random number for keepalived virtual router id
+  set_fact:
+      virtual_router_id: "{{ range(1,255) | random }}"
+  when:
+    - inventory_hostname == groups['etcd'][0]
+
+- debug:
+     msg: "{{ hostvars[groups['etcd'][0]].virtual_router_id }}"
+
+- name: "Run keepalived docker container on node 1"
+  shell: docker run --name ddni-keepalived --restart=always --cap-add=NET_ADMIN --cap-add=NET_BROADCAST --cap-add=NET_RAW --net=host --detach --privileged --env HOST_IP={{ HOST_IP }} --env KEEPALIVED_INTERFACE={{ KEEPALIVED_INTERFACE }} --env KEEPALIVED_VIRTUAL_IPS={{ KEEPALIVED_VIRTUAL_IPS }} --env etcdhost={{ inventory_hostname }} --env KEEPALIVED_NOTIFY={{ KEEPALIVED_NOTIFY }} --env KEEPALIVED_ROUTER_ID={{ hostvars[groups['etcd'][0]].virtual_router_id }} --env KEEPALIVED_PRIORITY={{ HIGH_PRIORITY }} -v /etc/ssl:/etc/ssl {{ docker_registry }}/ddni-keepalived --copy-service
+  when:
+    - inventory_hostname == groups['etcd'][0]
+
+
+- name: "Run keepalived docker container on node 2"
+  shell: docker run --name ddni-keepalived --restart=always --cap-add=NET_ADMIN --cap-add=NET_BROADCAST --cap-add=NET_RAW --net=host --detach --privileged --env HOST_IP={{ HOST_IP }} --env KEEPALIVED_INTERFACE={{ KEEPALIVED_INTERFACE }} --env KEEPALIVED_VIRTUAL_IPS={{ KEEPALIVED_VIRTUAL_IPS }} --env etcdhost={{ inventory_hostname }} --env KEEPALIVED_NOTIFY={{ KEEPALIVED_NOTIFY }} --env KEEPALIVED_ROUTER_ID={{ hostvars[groups['etcd'][0]].virtual_router_id }} --env KEEPALIVED_PRIORITY={{ LOW_PRIORITY }} -v /etc/ssl:/etc/ssl {{ docker_registry }}/ddni-keepalived --copy-service
+  when:
+    - inventory_hostname != groups['etcd'][0]

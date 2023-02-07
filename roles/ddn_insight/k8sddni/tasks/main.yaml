@@ -1,0 +1,23 @@
+---
+
+- name: Create namesapce for ddn-insight pods
+  template:
+    src: "{{ item.file }}.j2"
+    dest: "{{ kube_config_dir }}/{{ item.file }}"
+  with_items:
+    - {name: ddninamespace, file: ddninamespace.yml}   
+  register: ddni_namespace
+
+- name: Apply ddni namsespace file 
+  kube:
+    kubectl: "{{ bin_dir }}/kubectl"
+    filename: "{{ kube_config_dir }}/{{ item.item.file }}"
+    state: "latest"
+  with_items:
+    - "{{ ddni_namespace.results }}"
+  loop_control:
+    label: "{{ item.item.file }}"
+  when: inventory_hostname == groups['etcd'][0]
+
+- name: "set default namespace for k8s cluster"
+  shell: kubectl config set-context --current --namespace={{ ddninamespace }}

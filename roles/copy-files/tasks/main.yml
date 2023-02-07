@@ -1,0 +1,147 @@
+---
+# tasks file for copy_file
+
+- name: download_file | Create dest directory on node
+  file:
+    path:  /mnt/ddn-copy-files/
+    recurse: yes
+- name: Download static files from repo
+  get_url:
+    url: "{{files_repo}}/ddn-copy-files.tar.gz"
+    dest:  /mnt/ddn-copy-files/ddn-copy-files.tar.gz
+    mode: '0777'
+- name: Extract files on node 
+  unarchive:
+    src: /mnt/ddn-copy-files/ddn-copy-files.tar.gz
+    dest: /
+    remote_src: yes
+
+#copy monitor etcd .service file
+
+- name: Configure | Copy monitor_etcd.service systemd file
+  template:
+    src: "etcd_monitor.service.j2"
+    dest: /etc/systemd/system/monitor_etcd.service
+    backup: yes
+    owner: 'root'
+    mode: 0750
+  when: isdualnodesetup|bool
+
+#- name:  reload systemd
+#  systemd:
+#    daemon_reload: true 
+
+#- name: Restart monitor_etcd
+#  service:
+#    name: monitor_etcd.service
+#    state: started
+#    enabled: yes
+#  when: isdualnodesetup|bool
+
+#check ddnmon key exist or not,if exist then copy the ddnmonkey from one node to another node
+- name: Check if ddnmonkey exist at backup location
+  stat:
+      path: /etc/ddnmon/local/conf/ddnmon.key
+  register: is_ddnmonkey
+  when:        
+      - inventory_hostname == groups['etcd'][0]
+- debug:
+      msg: "{{ is_ddnmonkey }}"
+- set_fact:
+      ddnmonkey_present: "{{ is_ddnmonkey.stat.exists }}"
+  when:      
+    - inventory_hostname == groups['etcd'][0]
+    - isdualnodesetup|bool
+
+- fail:
+    msg: "ddnmon key not found."
+  when: 
+     - inventory_hostname == groups['etcd'][0]
+     - not is_ddnmonkey.stat.exists
+     - isdualnodesetup|bool
+
+- name: copy ddnmonkey 
+  slurp:
+    src: "{{ item }}"
+  register: ddnmonkey_data
+  with_items:
+    - "/etc/ddnmon/local/conf/ddnmon.key"
+  delegate_to: "{{ groups['etcd'][0] }}"
+  when:
+    - inventory_hostname in groups['etcd']
+    - inventory_hostname != groups['etcd'][0]
+    - isdualnodesetup|bool
+  notify: set ddnmon_key_changed 
+
+
+- name: Ensures ddnmonkey directory exists
+  file: path=/etc/ddnmon/local/conf
+        state=directory
+
+- name: Copy ddnmonkey | Write ddnmonkey to other node
+  copy:
+    dest: "{{ item.item }}"
+    content: "{{ item.content | b64decode }}"
+    mode: 0640
+  with_items: "{{ ddnmonkey_data.results }}"
+  when:
+    - inventory_hostname in groups['etcd']
+    - inventory_hostname != groups['etcd'][0]
+    - isdualnodesetup|bool
+  loop_control:
+    label: "{{ item.item }}"
+
+
+- name: Creating dmnode.list file
+  copy:
+    dest: "/etc/ddnmon/shared/dmnode.list"
+    content: |
+      {{ hostip }} {{ inventory_hostname }}
+  when:
+    - not isdualnodesetup|bool
+
+- name: Creating dmnode.list file for multiple node setup
+  copy:
+    dest: "/etc/ddnmon/shared/dmnode.list"
+    content: |
+      {{ hostip }} {{ inventory_hostname }}
+      {{ remoteip }} {{ remotehostname }}
+  when:
+    - isdualnodesetup|bool
+
+- name: Updating hazlecast configuration
+  replace:
+     path: /opt/ddnmon/dmfailover/hazelcast-config.xml
+     regexp: '{{item.From}}'
+     replace: '{{item.To}}'
+  with_items:
+          - { From: 'HOSTNAME', To: "{{ inventory_hostname }}" }
+          - { From: 'IPADDRESS', To: "{{ hostip }}" }
+  when:
+    - not isdualnodesetup|bool
+
+- name: Updating hazlecast configuration on nodes
+  replace:
+     path: /opt/ddnmon/dmfailover/hazelcast-config.xml
+     regexp: '{{item.From}}'
+     replace: '{{item.To}}'
+  with_items:
+          - { From: 'HOSTNAME', To: "{{ inventory_hostname }},{{ remotehostname }}" }
+          - { From: 'IPADDRESS', To: "{{ hostip }}" }
+  when:
+    - isdualnodesetup|bool          
+
+- name: Updating floating ip on the ddni node
+  replace:
+     path: /etc/ddnmon/shared/dmnode.floatingip
+     regexp: 'IPADDRESS'
+     replace: "{{ hostip }}"
+  when: not isdualnodesetup|bool
+
+
+- name: Updating floating ip on the ddni nodes
+  replace:
+     path: /etc/ddnmon/shared/dmnode.floatingip
+     regexp: 'IPADDRESS'
+     replace: "{{ hostvars[inventory_hostname]['groups']['vip'][0] }}"
+  when: isdualnodesetup|bool

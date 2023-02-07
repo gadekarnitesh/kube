@@ -1,0 +1,9 @@
+---
+
+# defaults file for di_aliases
+
+symlink_dir: "/usr/bin"
+
+scripts_dir: "/opt/ddnmon/scripts"
+
+

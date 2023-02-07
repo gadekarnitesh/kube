@@ -1,0 +1,22 @@
+---
+# defaults file for copy-files
+
+etcdcount: |-       
+    {{ groups['etcd'] | length | int }}
+isdualnodesetup: |-
+     {%- if etcdcount | int >1 -%}true{%- else -%}false{%- endif -%}
+hostip: |-       
+    {{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}
+remoteip: |-   
+    {% for host in groups['etcd'] -%}
+        {%- if hostvars[inventory_hostname]['ansible_hostname'] != host -%}
+          {{ hostvars[host]['ansible_default_ipv4']['address'] }}    
+        {%- endif -%}   
+    {%- endfor -%}
+remotehostname: |-
+    {% for host in groups['etcd'] -%}
+        {%- if hostvars[inventory_hostname]['ansible_hostname'] != host -%}
+          {{ host }}    
+        {%- endif -%}
+    {%- endfor -%}
+ 

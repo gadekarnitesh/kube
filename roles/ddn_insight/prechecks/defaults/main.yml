@@ -1,0 +1,17 @@
+---
+
+# defaults file for system prechecks
+
+data_dir_path: "/data"
+
+cache_dir_path: "/cache"
+
+minimum_data_dir_size: 64
+
+minimum_cache_dir_size: 32
+
+minimum_root_dir_size: 100
+
+minimum_memory: 7
+
+legacy_ddni_path: "/etc/ddnmon/local/ddnmon-version.txt"
