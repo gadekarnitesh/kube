@@ -1,6 +1,0 @@
----
-
-# defaults file for haproxy docker container installation
-
-ddninamespace: "ddni"
-
